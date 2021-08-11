@@ -196,6 +196,7 @@ ID3D12RootSignature* CreateRootSignatureForComputeShader()
 	D3D12SerializeRootSignature(&rootSigDesc, D3D_ROOT_SIGNATURE_VERSION_1_0, &rootSigBlob, &errBlob);
 	ID3D12RootSignature* rootSignature = nullptr;
 	result = dev_->CreateRootSignature(0, rootSigBlob->GetBufferPointer(), rootSigBlob->GetBufferSize(), IID_PPV_ARGS(&rootSignature));
+	rootSigBlob->Release();
 	assert(SUCCEEDED(result));
 	return rootSignature;
 }
@@ -238,6 +239,7 @@ void CreateComputePipeline()
 	pldesc.NodeMask = 0;
 	pldesc.pRootSignature = rootSignature_;
 	auto result = dev_->CreateComputePipelineState(&pldesc, IID_PPV_ARGS(&pipeline_));
+	csBlob->Release();
 	assert(SUCCEEDED(result));
 }
 
