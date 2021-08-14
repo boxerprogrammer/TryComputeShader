@@ -98,17 +98,19 @@ HRESULT CreateUAVBuffer(ID3D12Device* dev, ID3D12Resource*& res,const D3D12_RESO
 	D3D12_HEAP_PROPERTIES heapProp = {};
 	heapProp.Type = D3D12_HEAP_TYPE_DEFAULT;
 	D3D12_RESOURCE_DESC resDesc = {};
+	resDesc.SampleDesc.Count = 1;
+	resDesc.Layout = desc.Layout;
+
 	resDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 	resDesc.Format = desc.Format;
 	resDesc.Width = desc.Width;
-	resDesc.DepthOrArraySize = 1;
-	resDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 	resDesc.Height = desc.Height;
+	resDesc.DepthOrArraySize = desc.DepthOrArraySize;
 	resDesc.MipLevels = desc.MipLevels;
-	resDesc.SampleDesc.Count = 1;
-	resDesc.Layout = desc.Layout;
-	result = dev->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr,
-		IID_PPV_ARGS(&res));
+	resDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	result = dev->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &resDesc, 
+		D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr,	IID_PPV_ARGS(&res));
+
 	assert(SUCCEEDED(result));
 	return result;
 }
@@ -386,8 +388,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		handle.ptr += dev_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 	}
 	ID3D12Fence* fence_ = nullptr;
-	UINT64 _fenceVal = 0;
-	result = dev_->CreateFence(_fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence_));
+	UINT64 fenceVal_ = 0;
+	result = dev_->CreateFence(fenceVal_, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence_));
 
 	ShowWindow(hwnd, SW_SHOW);//ウィンドウ表示
 
@@ -750,11 +752,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		ID3D12CommandList* cmdlists[] = { cmdList_ };
 		cmdQueue_->ExecuteCommandLists(1, cmdlists);
 		////待ち
-		cmdQueue_->Signal(fence_, ++_fenceVal);
+		cmdQueue_->Signal(fence_, ++fenceVal_);
 
-		if (fence_->GetCompletedValue() != _fenceVal) {
+		if (fence_->GetCompletedValue() != fenceVal_) {
 			auto event = CreateEvent(nullptr, false, false, nullptr);
-			fence_->SetEventOnCompletion(_fenceVal, event);
+			fence_->SetEventOnCompletion(fenceVal_, event);
 			WaitForSingleObject(event, INFINITE);
 			CloseHandle(event);
 		}
@@ -771,6 +773,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	auto pipelineCS = CreateComputePipeline(rootSignatureCS);
 	ID3D12Resource* uavResource = nullptr;
 	auto ret = CreateUAVBuffer(dev_, uavResource, texbuff->GetDesc());
+	assert(SUCCEEDED(ret));
 
 	//ビューの作成
 	CreateComputeViews(texbuff, uavResource, uavDescriptorHeap);
@@ -787,7 +790,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	computeCmdList->SetComputeRootDescriptorTable(0,
 		uavDescriptorHeap->GetGPUDescriptorHandleForHeapStart()
 	);//ルートパラメータのセット
-	computeCmdList->Dispatch(img->width, img->height, 1);//ディスパッチ
+
+	//画像サイズ/スレッド数でディスパッチ
+	computeCmdList->Dispatch(img->width/4, img->height/4, 1);
 	
 	//バリアでステートを変更
 		//バリア
@@ -872,7 +877,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		r = (float)(0xff & frame >> 16) / 255.0f;
 		g = (float)(0xff & frame >> 8) / 255.0f;
 		b = (float)(0xff & frame >> 0) / 255.0f;
-		float clearColor[] = { r,g,b,1.0f };//黄色
+		float clearColor[] = { 0.0f,0.0f,1.0f,1.0f };//黄色
 		cmdList_->ClearRenderTargetView(rtvH, clearColor, 0, nullptr);
 		++frame;
 		cmdList_->RSSetViewports(1, &viewport);
@@ -902,11 +907,11 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		ID3D12CommandList* cmdlists[] = { cmdList_ };
 		cmdQueue_->ExecuteCommandLists(1, cmdlists);
 		////待ち
-		cmdQueue_->Signal(fence_, ++_fenceVal);
+		cmdQueue_->Signal(fence_, ++fenceVal_);
 
-		if (fence_->GetCompletedValue() != _fenceVal) {
+		if (fence_->GetCompletedValue() != fenceVal_) {
 			auto event = CreateEvent(nullptr, false, false, nullptr);
-			fence_->SetEventOnCompletion(_fenceVal, event);
+			fence_->SetEventOnCompletion(fenceVal_, event);
 			WaitForSingleObject(event, INFINITE);
 			CloseHandle(event);
 		}

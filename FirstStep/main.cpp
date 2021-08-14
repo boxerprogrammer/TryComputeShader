@@ -55,7 +55,7 @@ struct IDs {
 };
 
 //CPU側で管理するUAVデータ
-std::vector<IDs> uavdata(4 * 4 * 4);//テストUAVデータ
+std::vector<IDs> uavdata(2*2*2*4 * 4 * 4);//テストUAVデータ
 
 /// <summary>
 /// UAV書き込みバッファを作成する(最終出力先)
@@ -68,17 +68,20 @@ HRESULT CreateUAVBuffer(ID3D12Device* dev,ID3D12Resource*& res) {
 	D3D12_HEAP_PROPERTIES heapProp = {};
 	heapProp.Type = D3D12_HEAP_TYPE_DEFAULT;
 	D3D12_RESOURCE_DESC resDesc = {};
+	
+	//計算結果を書き込む先のバッファを作成
 	resDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
 	resDesc.Format = DXGI_FORMAT_UNKNOWN;
-	resDesc.Width = sizeof(uavdata[0]) * uavdata.size();//UAVのサイズを計算
+	resDesc.Width = sizeof(uavdata[0]) * uavdata.size();//計算結果書き込み先のサイズを計算
 	resDesc.DepthOrArraySize = 1;
 	resDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
 	resDesc.Height = 1;
 	resDesc.MipLevels = 1;
 	resDesc.SampleDesc.Count = 1;
 	resDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-	result = dev->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr,
-		IID_PPV_ARGS(&res));
+	result = dev->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &resDesc, 
+		D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr,	IID_PPV_ARGS(&res));
+
 	assert(SUCCEEDED(result));
 	return result;
 }
@@ -103,6 +106,7 @@ CreateSRVBuffer(ID3D12Device* dev, ID3D12Resource*& res) {
 	CD3DX12_HEAP_PROPERTIES heapProp(D3D12_HEAP_TYPE_UPLOAD);// = {};
 	D3D12_RESOURCE_DESC resDesc = {};
 	
+	//入力バッファ作成
 	resDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
 	resDesc.Format = DXGI_FORMAT_UNKNOWN;
 	resDesc.Width = sizeof(indata[0]) * indata.size();//入力サイズを計算
@@ -112,8 +116,9 @@ CreateSRVBuffer(ID3D12Device* dev, ID3D12Resource*& res) {
 	resDesc.MipLevels = 1;
 	resDesc.SampleDesc.Count = 1;
 	resDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-	result = dev->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &resDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
-		IID_PPV_ARGS(&res));
+	result = dev->CreateCommittedResource(&heapProp, D3D12_HEAP_FLAG_NONE, &resDesc, 
+		D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,	IID_PPV_ARGS(&res));
+
 	assert(SUCCEEDED(result));
 	return result;
 }
@@ -260,7 +265,7 @@ CreateUAV(ID3D12Resource* res) {
 	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
 	uavDesc.Format = DXGI_FORMAT_UNKNOWN;
 	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;//バッファとして
-	uavDesc.Buffer.NumElements = 4 * 4 * 4;//要素の総数
+	uavDesc.Buffer.NumElements = uavdata.size();//要素の総数
 	uavDesc.Buffer.StructureByteStride = sizeof(uavdata[0]);//1個当たりの大きさ
 	uavDesc.Buffer.FirstElement = 0;
 	uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
@@ -343,10 +348,14 @@ int main() {
 	cmdList_->SetComputeRootSignature(rootSignature_);//ルートシグネチャセット
 	ID3D12DescriptorHeap* descHeaps[] = { descriptorHeap_ };
 	cmdList_->SetDescriptorHeaps(1, descHeaps);//ディスクリプタヒープのセット
+	
+	//ルートパラメータのセット
 	cmdList_->SetComputeRootDescriptorTable(0, 
 		descriptorHeap_->GetGPUDescriptorHandleForHeapStart()
-	);//ルートパラメータのセット
+	);
 	cmdList_->Dispatch(2, 2, 2);//ディスパッチ
+
+
 	ID3D12Resource* cpyBuffer = nullptr;
 	CreateCopyBuffer(dev_, cpyBuffer);
 
@@ -381,10 +390,10 @@ int main() {
 	Terminate();
 
 	for (auto& d : uavdata) {
-		cout << "groupId=" << d.grpId << endl;
-		cout << "groupThreadId=" << d.grpThrdId << endl;
+		//cout << "groupId=" << d.grpId << endl;
+		//cout << "groupThreadId=" << d.grpThrdId << endl;
 		cout << "dispatchThreadId="<< d.dsptThrdId << endl;
-		cout << "groupIndex=" << d.grpIdx << endl;
+		//cout << "groupIndex=" << d.grpIdx << endl;
 	}
 	return 0;
 }
